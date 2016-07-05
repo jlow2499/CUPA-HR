@@ -1,0 +1,332 @@
+library(shiny)
+library(shinydashboard)
+library(DT)
+library(dplyr)
+library(ggvis)
+library(ggplot2)
+library(scales)
+library(ggthemes)
+library(plotly)
+
+sidebar <- dashboardSidebar(
+  sidebarMenu(
+    menuItem("Plot1", tabName = "plot1", icon = icon("bar-chart-o")),
+    menuItem("Plot2",tabName = "plot2", icon = icon("bar-chart-o")),
+    menuItem("Plot3",tabName = "plot3", icon = icon("bar-chart-o"))
+  )
+)
+
+body <- dashboardBody(
+  tabItems(
+    tabItem(tabName = "plot1",
+            fluidRow(
+                            box(width=3,
+                                selectInput("filter","Affiliation",
+                                            choices=c("Private for-Profit",
+                                                          "Private Independent",
+                                                          "Private Religious",
+                                                          "Public"),
+                                            selected=c("Private for-Profit",
+                                                          "Private Independent",
+                                                          "Private Religious",
+                                                          "Public"),
+                                            multiple=T,
+                                            selectize=T
+                                               )
+                           ),
+                           box(width=3,
+                               selectInput("filter2","Region",
+                                           choices=levels(adminsalaries$US.Census.Region),
+                                           selected=levels(adminsalaries$US.Census.Region),
+                                           selectize=T,
+                                           multiple=T
+                               )    
+                               ),
+                           box(width=3,
+                               selectInput("filter3","Gender",
+                                           choices=levels(adminsalaries$gender),
+                                           selected=levels(adminsalaries$gender),
+                                           selectize=T,
+                                           multiple=T))
+            
+                     ),
+          
+            ggvisOutput("theplot"),
+            uiOutput("plotcontrol")
+                 
+            
+    ),
+    tabItem(tabName="plot2",
+            fluidRow(
+              box(width=3,
+                  selectInput("filter4","Affiliation",
+                              choices=levels(adminsalaries$Affiliation),
+                              selected=levels(adminsalaries$Affiliation),
+                              multiple=T,
+                              selectize=T
+                  )
+              ),
+              box(width=3,
+                  selectInput("filter5","Region",
+                              choices=levels(adminsalaries$US.Census.Region),
+                              selected=levels(adminsalaries$US.Census.Region),
+                              selectize=T,
+                              multiple=T
+                  )    
+              ),
+              box(width=3,
+                  selectInput("filter6","Gender",
+                              choices=levels(adminsalaries$gender),
+                              selected=levels(adminsalaries$gender),
+                              selectize=T,
+                              multiple=T))
+              
+              
+              
+              ),
+            
+            
+            fluidRow(
+            box(width=12,
+            plotlyOutput("trendPlot")
+            )
+            )
+            ),
+    tabItem(tabName="plot3",
+      fluidRow(
+        box(width=3,
+            radioButtons("filter7","Group Variable",
+                        choices=c("Gender"="gender",
+                                  "Ethnicity" = "ethnicity",
+                                  "Affiliation" = "Affiliation",
+                                  "Region"="US.Census.Region")
+            )
+        ),
+        box(width=3,
+            radioButtons("filter8","Summary Variable",
+                        choices=c("Salary"="salary",
+                                  "Tenure"="years.in.position",
+                                  "Operating Expenses"="Operating.expenses",
+                                  "Total Students"="Total.Student.FTE",
+                                  "Total Faculty"="Total.Faculty.FTE"))
+                        ),
+        box(width=3,
+            radioButtons("filter9","Statistical Operator",
+                         choices=c("Mean"="mean",
+                                   "Median"="median")))
+      ),
+      box(width=12,
+          plotlyOutput("trendPlot2")
+        
+        
+        
+      )
+      
+      )
+  ))
+
+
+
+ui <- dashboardPage(
+  dashboardHeader(title="CUPA-HR"),
+  sidebar,
+  body,
+  shinyjs::useShinyjs()
+)
+
+server <- function(input, output,session) {
+  
+  string1 <- reactive({
+    c(input$filter[1],
+      input$filter[2],
+      input$filter[3],
+      input$filter[4])
+  })
+  
+  string2 <- reactive({
+    c(input$filter2[1],
+      input$filter2[2],
+      input$filter2[3],
+      input$filter2[4])
+  })
+  
+  string3 <- reactive({
+    c(input$filter3[1],
+      input$filter3[2],
+      input$filter3[3],
+      input$filter3[4])
+  })
+  
+  string4 <- reactive({
+    c(input$filter4[1],
+      input$filter4[2],
+      input$filter4[3],
+      input$filter4[4])
+  })
+  
+  string5 <- reactive({
+    c(input$filter5[1],
+      input$filter5[2],
+      input$filter5[3],
+      input$filter5[4])
+  })
+  
+  string6 <- reactive({
+    c(input$filter6[1],
+      input$filter6[2],
+      input$filter6[3],
+      input$filter6[4])
+  })
+  
+ 
+  plot1 <- reactive({
+    a <- adminsalaries[adminsalaries$Affiliation %in% string1(),]
+    b <- a[a$US.Census.Region %in% string2(),]
+    c <- b[b$gender %in% string3(),]
+    
+    tenure <- c %>%
+      group_by(years.in.position,VETS.100.Category) %>%
+      summarize(Mean_Salary = median(salary))
+    tenure$VETS.100.Category <- as.factor(tenure$VETS.100.Category)
+    
+    tenure <- plyr::rename(tenure,c("years.in.position"="Tenure"))
+    
+    tenure <- as.data.frame(tenure)
+    tenure <- if(nrow(tenure)==0){
+      years}else{
+        tenure
+      }
+    
+ 
+    tenure
+    
+  })
+    
+ 
+  observe({
+ if(is.null(input$filter)||is.null(input$filter2)||is.null(input$filter3)){
+   
+   shinyjs::info("The dataframe is empty, please do not delete all inputs!!!")
+   shinyjs::reset("filter")
+   shinyjs::reset("filter2")
+   shinyjs::reset("filter3")
+      
+    }else{
+  plot1 %>%
+    ggvis(~Tenure,~Mean_Salary,stroke=~VETS.100.Category) %>%
+    filter(VETS.100.Category %in% eval(input_select(c("Exec/Sr Level Officials",
+                                                      "First/Mid Level Officials",
+                                                      "Prof"),
+                                                    selected="Exec/Sr Level Officials",
+                                                    multiple=T,
+                                                    selectize=T))) %>%
+    layer_points() %>%
+    add_tooltip(function(data){
+      paste0("Median Salary: ", scales::dollar(data$Mean_Salary), 
+      "<br>", "Tenure: ",paste(data$Tenure,"Years"))
+      }, "hover")%>%
+    layer_lines() %>%
+    add_axis('y', title='Median Salary',
+             properties=axis_props(labels=list(fontSize=12), 
+                                   title=list(fontSize=16,dy=-35))) %>%
+    add_axis("x",title="Tenure",
+             properties=axis_props(labels=list(fontSize=12), 
+                                   title=list(fontSize=16))) %>%
+    bind_shiny("theplot",controls_id="plotcontrol")}
+
+ 
+ })
+ 
+ 
+ plot2 <- reactive({
+   a <- adminsalaries[adminsalaries$Affiliation %in% string4(),]
+   b <- a[a$US.Census.Region %in% string5(),]
+   c <- b[b$gender %in% string6(),]
+   
+   plot<- c %>%
+     group_by(NCAA.Division,VETS.100.Category) %>%
+     summarize(Median_Salary = median(salary))
+   plot
+   
+ })
+ 
+ output$trendPlot <- renderPlotly({
+   p <- ggplot(plot2(),aes(x=NCAA.Division,
+                                 y=Median_Salary,
+                                 fill=VETS.100.Category,
+                                 group=VETS.100.Category)) 
+   p <- p + geom_bar(stat = "identity", 
+                     width = .75, 
+                     position = "dodge",
+                     color="black") 
+  # p <- p + geom_text(aes(label=scales::dollar(Median_Salary)), 
+   #                   vjust=-.3, 
+    #                  color="black", 
+     #                 size=3.5)
+   p <- p + facet_grid(. ~ VETS.100.Category)
+   p <- p + scale_y_continuous(labels=scales::dollar) 
+   p <- p + theme(axis.text.x = element_text(angle = 30)) 
+   p <- p + ylab("    ") 
+   p <- p + xlab("NCAA Division") 
+   p <- p + theme(axis.title=element_text(size=8,color="black")) 
+   p <- p + theme(axis.text=element_text(size=8,color="black")) 
+   p <- p + theme_igray() + scale_colour_tableau()
+   p <- p + scale_fill_discrete(name="VETS 100 Category") 
+   
+   plot <- ggplotly(p)
+ plot
+ })
+ 
+  plot3 <- reactive({
+   data <- adminsalaries %>%
+     group_by(if(input$filter7=="gender"){
+       gender}
+       else{
+         if(input$filter7=="ethnicity"){
+           ethnicity}
+         else{
+           if(input$filter7=="Affiliation"){
+             Affiliation
+           }else{
+             US.Census.Region
+           }
+         }               
+         }
+
+       ) %>%
+     summarize(Aggregate = ifelse(input$filter8 == "salary" && input$filter9 == "mean",mean(salary),
+                           ifelse(input$filter8 == "salary" && input$filter9 == "median",median(salary),
+                           ifelse(input$filter8 == "years.in.position" && input$filter9 =="mean",mean(years.in.position),
+                           ifelse(input$filter8 == "years.in.position" && input$filter9 =="median",median(years.in.position),
+                           ifelse(input$filter8 == "Operating.expenses" && input$filter9 =="mean",mean(Operating.expenses),
+                           ifelse(input$filter8 == "Operating.expenses" && input$filter9 =="median",median(Operating.expenses),
+                           ifelse(input$filter8 == "Total.Student.FTE" && input$filter9 =="mean",mean(Total.Student.FTE),
+                           ifelse(input$filter8 == "Total.Student.FTE" && input$filter9 =="median",median(Total.Student.FTE),
+                           ifelse(input$filter8 == "Total.Faculty.FTE" && input$filter9 =="mean",mean(Total.Faculty.FTE),
+                                  median(Total.Faculty.FTE)
+                           ))))))))))
+                         
+                                         
+                                       
+   colnames(data)[1] <- "Group_Variable"
+   data
+   
+ })
+ 
+ output$trendPlot2 <- renderPlotly({
+   p <- ggplot(plot3(),aes(x=Group_Variable,
+                           y=Aggregate)) 
+   p <- p + geom_bar(stat = "identity", 
+                     width = .75, 
+                     color="black") 
+   p <- p + theme_igray() + scale_colour_tableau()
+   p <- p + xlab("    ") 
+   p <- p + ylab("    ")
+   p <- p + scale_y_continuous(labels=scales::comma) 
+   
+   plot <- ggplotly(p)
+   plot
+ })
+  
+}
+shinyApp(ui, server)
