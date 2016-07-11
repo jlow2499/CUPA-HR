@@ -114,4 +114,3 @@ threed <- adminsalaries %>%
 setwd("C:/Users/Jeremiah Lowhorn/Desktop/CUPAHR/Application")
 
 runApp(host="0.0.0.0",port=5050)
-
